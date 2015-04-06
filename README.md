@@ -1,7 +1,7 @@
 Typed map
 =========
 
-Typed map is a map in which keys have single type argument and it that type argument is the type of value. 
+Typed map is a map in which keys have single type argument which is the type of value.
 
 Have a look:
 
