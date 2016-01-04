@@ -1,1 +1,2 @@
 include 'synapse-frames'
+include 'synapse-slick-lifted'
