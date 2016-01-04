@@ -1,7 +1,7 @@
 package ru.primetalk.synapse.map
 
 import scala.collection.generic.CanBuildFrom
-
+import scala.language.higherKinds
 /**
  * Typeless type for a key. It is helpful to deal without generics.
  * @author zhizhelev, 31.01.15.
@@ -9,14 +9,13 @@ import scala.collection.generic.CanBuildFrom
 sealed trait Key0 {
   def isOptional: Boolean
 }
-
 /** Keys address data elements in typed maps.
   * @tparam E Left type of a key denotes some type that corresponds to the meaning of the typed map.
   *           As far as typed maps are covariant, key's left type is contravariant because the
   *           key much is like a function from instance of TypedMap to value T.
   * @tparam T right type of the Key
   */
-trait Key[-E, +T] extends Key0 {
+trait Key[-E, T] extends Key0 {///with RelationId[TypedMap[E],T]{
 //  type LeftType >: E contravariant type cannot be stored in invariant type
 //  type RightType <: T covariant type cannot be stored in invariant type
 
@@ -25,38 +24,42 @@ trait Key[-E, +T] extends Key0 {
   def ? = new OptionalKey0[E, T](this)
 }
 
-case class StringKey[-E, +T](name: String) extends Key[E, T] { def value = name }
+case class StringKey[-E, T](name: String) extends Key[E, T] { def value = name }
 
-case class LongKey[-E, +T](id: Long) extends Key[E, T] { def value = id }
+case class LongKey[-E, T](id: Long) extends Key[E, T] { def value = id }
 
 /** A key that is based on an arbitrary value*/
-case class AnyKey[-E, +T, A](value: A) extends Key[E, T]
+case class AnyKey[-E, T, A](value: A) extends Key[E, T]
 
 /** A variant of a key that has type Option[T].
   * This can be used to explicitly express the idea of an absent value.
   * For instance when we want to have a projection of a few properties,
   * we may use optional keys for those properties that can be empty.
   * */
-case class OptionalKey0[-E, +T](key: Key[E, T]) extends Key[E,Option[T]] {
+case class OptionalKey0[-E, T](key: Key[E, T]) extends Key[E,Option[T]] {
 
   override def isOptional = true
 }
 
-/**
- * Typed map contains data that is addressed with typed keys.
- * The map is immutable.
- *
- * @tparam E type that corresponds to the meaning of the typed map. Usually types E participate in
- *           a type hierarchy (a trait, an abstract class, a final abstract class).
- *           TypedMaps do nothing with instances of that type. It is used only at compile time
- *           to constrain key usage.
- */
-trait TypedMap[+E] {
+sealed trait TypedMap0 {
 
   def keys: Iterable[Key0]
 
   def keySet: Set[Key0]
 
+}
+/**
+ * Typed map contains data that is addressed with typed keys.
+ * The map is immutable.
+ *
+ * @tparam E type that corresponds to the meaning of the typed map. Usually types E participate in
+ *           a type hierarchy (a trait, an abstract class, a final abstract class) or some kind of
+  *           type construction (higher kinded types).
+ *           TypedMaps do nothing with instances of that type. It is used only at compile time
+ *           to constrain key usage.
+ */
+trait TypedMap[+E] extends TypedMap0 {
+//  type EntityType <: E
   def apply[T](key: Key[E, T]): T
 
   def get[T](key: Key[E, T]): Option[T]
@@ -89,6 +92,7 @@ case class KeyValue[E, T](key: Key[E, T], value: T) extends KeyValue0[E]
 
 case class TypedMapImpl[+E](map: Map[Key0, Any]) extends TypedMap[E] {
 
+//  type EntityType = E
   def keys: Iterable[Key0] = map.keys
 
   def keySet: Set[Key0] = map.keySet
@@ -139,15 +143,67 @@ case class TypedMapImpl2[+E](keysArray:Array[Key0], valuesArray:Array[Any]) exte
 }
 
 
-object TypedMap {
-  def apply[E](keyValues: KeyValue[E, _]*) =
-    new TypedMapImpl[E](Map(keyValues.map(kv => (kv.key, kv.value)): _*))
-
-  implicit class KeyEx[E, T](key: Key[E, T]) {
-    def ::=(value: T) = KeyValue(key, value)
-  }
-
-}
+//object TypedMap extends RelationTypeClass[Key[_, _]]{
+//  def apply[E](keyValues: KeyValue[E, _]*) =
+//    new TypedMapImpl[E](Map(keyValues.map(kv => (kv.key, kv.value)): _*))
+//
+//  implicit class KeyEx[E, T](key: Key[E, T]) {
+//    def ::=(value: T) = KeyValue(key, value)
+//  }
+//
+//  override type KeyKind[E,T] = Key[E, T]
+//
+//  /**
+//    * Setter for the key.
+//    * @param key the key to be set
+//    * param s the storage that keeps the data
+//    * param v the value to insert into the storage at the key.
+//    * tparam E the entity type
+//    * @tparam T the value type
+//    * @return the updated storage that has new value at key.
+//    */
+//  override def setter[TM <: TypedMap[_], T](key: KeyKind[TM, T]) = (s: TM) => (v: T) =>
+//    ??? //s.updated(key,v)
+//
+//  /** Getter for the key.
+//    * @param key the key to get
+//    * @tparam E the entity type
+//    * @tparam T the value type
+//    * @return the value at key.
+//    */
+//  override def getter[E, T](key: KeyKind[E, T]) = ???
+////  (s: TypedMap[E]) =>
+////    s.get(key).getOrElse(throw new IllegalArgumentException(s"$key is not available in $s"))
+//
+//  /**
+//    * Gets the content of the key.
+//    * @return None if the key is absent.
+//    */
+//  override def getterOpt[E, T](key: KeyKind[E, T]) =  ???  ///(s: TypedMap[E]) => s.get(key)
+//
+////  def contains[S,T](rel:KeyKind[S, T]):S=>Boolean
+////  def relations[S]:S=>Seq[KeyKind[S,_]]
+//  /**
+//    * A reflection on the storage.
+//    * param s the storage with some data
+//    * tparam E the entity type
+//    * @return the sequence of keys that can be extracted from the storage
+//    */
+//   override   def relations[E<:Container]:Container=>Seq[KeyKind[E,_]] = ???
+////  def relations[S<: TypedMap[_]] =
+////    (s: S) => s.keySet.toSeq.asInstanceOf[Seq[Key[E,_]]]
+//
+//  /** Checks whether the storage contains the key.
+//    *
+//    * @param key the key to check
+//    * param s the storage
+//    * @tparam E the entity type
+//    * @tparam T the type of the value of the key
+//    * @return true if the key can be requested.
+//    */
+//
+//  override def contains[E<:Container,T](rel:KeyKind[E, T]):E=>Boolean  = ???  //def contains[E<:Container, T](key: Key[E, T]): TypedMap[E] => Boolean = ???  //(s: TypedMap[E]) => s.contains(key)
+//}
 
 /** A class that represents a lot of instances with the same sequence of keys.
   *

@@ -20,8 +20,8 @@ object types {
     *      Unboxed union types in Scala via the Curry-Howard isomorphism by Miles Sabin. */
   object TypeOps {
 
-    type ¬[A] = A => Nothing
-    type ¬¬[A] = ¬[¬[A]]
+    type ¬[-A] = A => Nothing
+    type ¬¬[+A] = ¬[¬[A]]
 
     type ∈[T, P] = T <:< P
     type ∉[T, P] = ¬[P] <:< ¬[T]
