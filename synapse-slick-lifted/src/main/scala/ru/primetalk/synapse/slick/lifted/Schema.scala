@@ -1,5 +1,7 @@
 package ru.primetalk.synapse.slick.lifted
 
+import ru.primetalk.synapse.map._
+
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 

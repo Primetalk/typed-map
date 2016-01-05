@@ -1,5 +1,7 @@
 package ru.primetalk.synapse.slick.lifted
 
+import ru.primetalk.synapse.map._
+
 /**
  * @author zhizhelev, 01.02.15.
  */

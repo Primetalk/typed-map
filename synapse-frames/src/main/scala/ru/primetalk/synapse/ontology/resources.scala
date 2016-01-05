@@ -19,6 +19,11 @@ object resources {
   /** The identifier of a resource of type T. */
   trait ResourceId[+T]
 
+  /** Resource identifier.*/
+  trait Id[A]
+
+  trait Entity[A]
+
   /** A function that can resolve the resource by it's id. */
   type ResourceResolver[T] = ResourceId[T] => T
 

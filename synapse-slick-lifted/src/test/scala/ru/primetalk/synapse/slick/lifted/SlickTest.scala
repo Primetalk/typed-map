@@ -12,7 +12,8 @@ import slick.lifted.ProvenShape
 import slick.memory.MemoryDriver
 import slick.memory.MemoryDriver.simple._
 import ru.primetalk.synapse.slick.lifted.TypedMapShape._
-import ru.primetalk.synapse.slick.lifted.TypedMap._
+import ru.primetalk.synapse.map._
+import ru.primetalk.synapse.map.TypedMap._
 
 import slick.util.TreeDump
 

@@ -6,6 +6,7 @@ import scala.reflect.ClassTag
 import slick.lifted.{TupleShape, FlatShapeLevel, MappedProductShape, Shape}
 import slick.util.{TupleSupport, ProductWrapper}
 import scala.language.implicitConversions
+import ru.primetalk.synapse.map._
 /**
  * Shape - represents types of rows in 3 different forms
  * - unpacked - actual row values

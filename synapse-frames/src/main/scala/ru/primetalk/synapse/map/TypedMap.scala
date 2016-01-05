@@ -41,6 +41,10 @@ case class OptionalKey0[-E, T](key: Key[E, T]) extends Key[E,Option[T]] {
   override def isOptional = true
 }
 
+sealed trait Record0
+
+trait Record[+T]
+
 sealed trait TypedMap0 {
 
   def keys: Iterable[Key0]
@@ -143,13 +147,13 @@ case class TypedMapImpl2[+E](keysArray:Array[Key0], valuesArray:Array[Any]) exte
 }
 
 
-//object TypedMap extends RelationTypeClass[Key[_, _]]{
-//  def apply[E](keyValues: KeyValue[E, _]*) =
-//    new TypedMapImpl[E](Map(keyValues.map(kv => (kv.key, kv.value)): _*))
-//
-//  implicit class KeyEx[E, T](key: Key[E, T]) {
-//    def ::=(value: T) = KeyValue(key, value)
-//  }
+object TypedMap {//extends RelationTypeClass[Key[_, _]]{
+  def apply[E](keyValues: KeyValue[E, _]*) =
+    new TypedMapImpl[E](Map(keyValues.map(kv => (kv.key, kv.value)): _*))
+
+  implicit class KeyEx[E, T](key: Key[E, T]) {
+    def ::=(value: T) = KeyValue(key, value)
+  }
 //
 //  override type KeyKind[E,T] = Key[E, T]
 //
@@ -203,7 +207,7 @@ case class TypedMapImpl2[+E](keysArray:Array[Key0], valuesArray:Array[Any]) exte
 //    */
 //
 //  override def contains[E<:Container,T](rel:KeyKind[E, T]):E=>Boolean  = ???  //def contains[E<:Container, T](key: Key[E, T]): TypedMap[E] => Boolean = ???  //(s: TypedMap[E]) => s.contains(key)
-//}
+}
 
 /** A class that represents a lot of instances with the same sequence of keys.
   *

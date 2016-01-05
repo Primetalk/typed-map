@@ -144,7 +144,7 @@ trait SchemeDefs extends RelationsDefs with RelationOps {
     def classTag = scheme.classTag
   }
 
-  case class Gen1Scheme[T, S[T]](tag: Any, scheme: Scheme[T])(implicit val classTag: ClassTag[S[T]]) extends Scheme[S[T]]
+  case class Gen1Scheme[T, S[_]](tag: Any, scheme: Scheme[T])(implicit val classTag: ClassTag[S[T]]) extends Scheme[S[T]]
 
   /** The user may use another way of type description. */
   case class CustomScheme[T, CS](tag: Any, cs: CS)(implicit val classTag: ClassTag[T]) extends Scheme[T]
@@ -225,7 +225,7 @@ trait InstanceDefs extends SchemeDefs {
     type SchemeType = AnnotatedScheme[T]
   }
 
-  case class Gen1Instance[T, S[T]](tag: Any, value: Instance[T]) extends Instance[S[T]] {
+  case class Gen1Instance[T, S[_]](tag: Any, value: Instance[T]) extends Instance[S[T]] {
     type SchemeType = Gen1Scheme[T, S]
   }
 
@@ -245,7 +245,7 @@ trait SimpleOperationsDefs extends InstanceDefs {
 
   implicit def toSimpleScheme[T <: AnyVal](implicit classTag: ClassTag[T]) = SimpleScheme[T]()
 
-  implicit def intToIntId[T](id: Int) = IntId[T](id)
+  implicit def intToIntId[T](id: Int):IntId[T] = IntId[T](id)
 
   def navigate[E, T](i: Instance[E], path: Relation[E, T]): Instance[T] =
     (
@@ -401,8 +401,8 @@ trait OperationsDefs extends SimpleOperationsDefs {
                    res: List[(String, Instance[T])]): (List[(String, Instance[_])], List[Any]) =
           props match {
             case Nil => (res.reverse, data)
-            case RelWithRScheme(rel, scheme) :: ptail =>
-              val (prop, rest) = align0(data, scheme)
+            case RelWithRScheme(rel, scheme1) :: ptail =>
+              val (prop, rest) = align0(data, scheme1)
               align1(rest, ptail, (rel.name, prop) :: res)
             case msg :: _ => throw new IllegalArgumentException(s"Alignment is not implemented for $msg")
           }
@@ -413,7 +413,7 @@ trait OperationsDefs extends SimpleOperationsDefs {
       case _ => throw new IllegalArgumentException(s"Alignment is not implemented for $scheme")
     }
     val (res, tail) = align0(data, scheme)
-    if (!tail.isEmpty)
+    if (tail.nonEmpty)
       throw new IllegalArgumentException(s"$data cannot be aligned to $scheme completely")
     res
   }
