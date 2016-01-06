@@ -43,7 +43,7 @@ class RelationsTest extends FunSuite {
 
   import Box._
 
-  val boxScheme = record[Box](width, height)
+  val boxScheme = record[Box](simpleRel(width), simpleRel(height))
 
   val b0 = update(empty[Box], width, simple(10))
   val b1 = b0.set(height, simple(20))
@@ -112,13 +112,13 @@ class RelationsTest extends FunSuite {
     assert(b1 === b4)
   }
 
+  abstract class Shape
+  trait BoundingRectangle
+
+  final class Rectangle extends Shape with BoundingRectangle
+  final class Circle extends Shape with BoundingRectangle
+
   test("longer hierarchy") {
-    abstract class Shape
-    trait BoundingRectangle
-
-    final class Rectangle extends Shape with BoundingRectangle
-    final class Circle extends Shape with BoundingRectangle
-
     object BoundingRectangleS extends PropertySeq[BoundingRectangle] {
       val width = simpleProperty[Int]("width")
       val height = simpleProperty[Int]("height")
@@ -134,7 +134,7 @@ class RelationsTest extends FunSuite {
     val name = Rel[Shape, String]("name")
 
     val onlyBoundingRectScheme = BoundingRectangleS.toScheme
-    val someInfoAboutACircle = record[Circle](radius)
+    val someInfoAboutACircle = record[Circle](simpleRel(radius))
     val fullInfoAboutACircle = someInfoAboutACircle ++ onlyBoundingRectScheme
 
     val circ10 = new Builder(someInfoAboutACircle).

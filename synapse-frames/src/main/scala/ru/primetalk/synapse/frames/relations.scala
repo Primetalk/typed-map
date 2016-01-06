@@ -15,6 +15,7 @@ package ru.primetalk.synapse.frames
 import scala.collection.mutable
 import scala.language.{existentials, higherKinds, implicitConversions, reflectiveCalls}
 import scala.reflect._
+import scala.reflect.runtime.universe._
 
 /**
  * Relations are named binary relations between two types.
@@ -36,32 +37,37 @@ import scala.reflect._
  * a pair of types with the schemes for either types.
  *
  * The values of types according to scheme can be represented in different forms. However, general data processing
- * can be done with the set of Instance[T] desendents.
+ * can be done with the set of Instance[T] descendents.
  *
  * It is also possible to have reflection-based implementation for storing data in fields of POJO.
  */
 trait RelationsDefs {
 
+  sealed trait Property00
+  sealed trait Property10[-L] extends Property00
+  sealed trait Property01[R] extends Property00 {
+    def typeTag:TypeTag[R]
+  }
   /**
    * An arbitrary relation identifier.
-   **/
-  trait Relation[-L, R]
+   */
+  trait Relation[-L, R] extends Property10[L] with Property01[R]
 
   /** A single instance of type R can be traversed to
     * from  an instance of type L using the given name.
     *
     * Usually this is referred to as an attribute or a property.
     * */
-  case class Rel[-L, R](name: String) extends Relation[L, R]
+  case class Rel[-L, R](name: String)(implicit val typeTag:TypeTag[R]) extends Relation[L, R]
 
   /** A single instance of type R can be obtained
     * from an  instance of type L using index.
     *
     * Usually this is referred to as a relative identifier of a child instance.
     * */
-  case class LongId[T](id: Long) extends Relation[Seq[T], T]
+  case class LongId[T](id: Long)(implicit val typeTag:TypeTag[T]) extends Relation[Seq[T], T]
 
-  case class IntId[T](id: Int) extends Relation[Seq[T], T]
+  case class IntId[T](id: Int)(implicit val typeTag:TypeTag[T]) extends Relation[Seq[T], T]
 
   /**
    * A special relation between the collection and its's element.
@@ -69,26 +75,28 @@ trait RelationsDefs {
    * This can be the case when we add elements to a collection, or we are interested
    * in the scheme of elements.
    **/
-  case class ElemRel[T]() extends Relation[Seq[T], T]
+  case class ElemRel[T]()(implicit val typeTag:TypeTag[T]) extends Relation[Seq[T], T]
 
   /** A composition of two relations. */
-  case class Rel2[-L, M, R](_1: Relation[L, M], _2: Relation[M, R]) extends Relation[L, R]
+  case class Rel2[-L, M, R](_1: Relation[L, M], _2: Relation[M, R]) extends Relation[L, R] {
+    def typeTag:TypeTag[R] = _2.typeTag
+  }
 
   /** Special relations for Tuple2Scheme */
-  case class _1[T]() extends Relation[(T, _), T]
+  case class _1[T]()(implicit val typeTag:TypeTag[T]) extends Relation[(T, _), T]
 
-  case class _2[T]() extends Relation[(_, T), T]
+  case class _2[T]()(implicit val typeTag:TypeTag[T]) extends Relation[(_, T), T]
 
   /** Analogous to Seq but uses TId as a key to access instance of type T. */
   trait IndexedCollection[TId, T]
 
-  /** Index is a special kind of property of a collection that
-    * allows to refer to an element by it's property value.
-    */
-  case class Index[TId, T](keyProperty: Relation[T, TId]) extends Relation[Seq[T], IndexedCollection[TId, T]]
-
-  /** It's a key in the indexed collection. */
-  case class IndexValue[TId, T](value: TId) extends Relation[IndexedCollection[TId, T], T]
+//  /** Index is a special kind of property of a collection that
+//    * allows to refer to an element by it's property value.
+//    */
+//  case class Index[TId, T](keyProperty: Relation[T, TId]) extends Relation[Seq[T], IndexedCollection[TId, T]]
+//
+//  /** It's a key in the indexed collection. */
+//  case class IndexValue[TId, T](value: TId) extends Relation[IndexedCollection[TId, T], T]
 
 }
 
@@ -98,9 +106,9 @@ trait RelationOps extends RelationsDefs {
     def /[R2](r2: Relation[R, R2]): Relation[L, R2] = Rel2[L, R, R2](r, r2)
   }
 
-  implicit class RelEx2[L, R](r: Relation[L, R]) {
-    def index = Index[R, L](r)
-  }
+//  implicit class RelEx2[L, R](r: Relation[L, R]) {
+//    def index = Index[R, L](r)
+//  }
 
 }
 
@@ -110,15 +118,18 @@ trait SchemeDefs extends RelationsDefs with RelationOps {
   case class RelWithRScheme[-L, R](rel: Rel[L, R], scheme: Scheme[R])
 
   sealed trait Scheme[T] {
-    def classTag: ClassTag[T]
+    def typeTag: TypeTag[T]
+    def classTag = ClassTag[T](typeTag.mirror.runtimeClass(typeTag.tpe))
   }
 
-  case class SimpleScheme[T](implicit val classTag: ClassTag[T]) extends Scheme[T]
+  implicit def schemeToTypeTag[T](implicit scheme:Scheme[T]):TypeTag[T] = scheme.typeTag
+
+  case class SimpleScheme[T](implicit val typeTag: TypeTag[T]) extends Scheme[T]
 
   /** Scheme that describes some record with properties. The properties can only belong to
     * the type T. However, there can be different set of properties.
     * */
-  case class RecordScheme[T](props: Seq[RelWithRScheme[T, _]])(implicit val classTag: ClassTag[T]) extends Scheme[T] {
+  case class RecordScheme[T](props: Seq[RelWithRScheme[T, _]])(implicit val typeTag: TypeTag[T]) extends Scheme[T] {
     lazy val map = props.map(p => (p.rel.name, p.scheme.asInstanceOf[Scheme[_]])).toMap[String, Scheme[_]]
     lazy val keySet = map.keySet
   }
@@ -126,34 +137,33 @@ trait SchemeDefs extends RelationsDefs with RelationOps {
   sealed class Tag[Tg, T]
 
   /** the instance is also tagged with the tag. */
-  case class TaggedScheme[Tg, T](tag: Tg, scheme: Scheme[T]) extends Scheme[Tag[Tg, T]] {
-    def classTag = scala.reflect.classTag[Tag[Tg, T]]
+  case class TaggedScheme[Tg, T](tag: Tg, scheme: Scheme[T])(implicit tagTypeTag:TypeTag[Tg]) extends Scheme[Tag[Tg, T]] {
+    def typeTag: TypeTag[Tag[Tg, T]] = { implicit val tt = scheme.typeTag; implicitly[TypeTag[Tag[Tg, T]]]}
   }
 
   case class CollectionScheme[T](elementScheme: Scheme[T]) extends Scheme[Seq[T]] {
-    def classTag = scala.reflect.classTag[Seq[T]]
+    def typeTag: TypeTag[Seq[T]] = { implicit val tt = elementScheme.typeTag; implicitly[TypeTag[Seq[T]]]}
   }
 
-
-  case class Tuple2Scheme[T1, T2](_1: Scheme[T1], _2: Scheme[T2]) extends Scheme[(T1, T2)] {
-    def classTag = scala.reflect.classTag[(T1, T2)]
-  }
-
-
+//  case class Tuple2Scheme[T1, T2](_1: Scheme[T1], _2: Scheme[T2]) extends Scheme[(T1, T2)] {
+//    def classTag = scala.reflect.classTag[(T1, T2)]
+//  }
+//
   case class AnnotatedScheme[T](scheme: Scheme[T])(annotations: Any*) extends Scheme[T] {
-    def classTag = scheme.classTag
+    def typeTag = scheme.typeTag
   }
 
-  case class Gen1Scheme[T, S[_]](tag: Any, scheme: Scheme[T])(implicit val classTag: ClassTag[S[T]]) extends Scheme[S[T]]
-
-  /** The user may use another way of type description. */
-  case class CustomScheme[T, CS](tag: Any, cs: CS)(implicit val classTag: ClassTag[T]) extends Scheme[T]
+//  case class Gen1Scheme[T, S[_]](tag: Any, scheme: Scheme[T])(implicit val classTag: ClassTag[S[T]]) extends Scheme[S[T]]
+//
+//  /** The user may use another way of type description. */
+//  case class CustomScheme[T, CS](tag: Any, cs: CS)(implicit val classTag: ClassTag[T]) extends Scheme[T]
 
   /** Helper trait for constructing record schemes.
     */
-  trait PropertySeq[L] {
-
-    implicit val classTag: ClassTag[L] = scala.reflect.classTag[L]
+  abstract class PropertySeq[L:TypeTag] {
+    val typeTag: TypeTag[L] = implicitly[TypeTag[L]]
+    /** NB! classTag may not exist for phantom types.*/
+    lazy val classTag: ClassTag[L] = ClassTag[L](typeTag.mirror.runtimeClass(typeTag.tpe))
 
     private
     val propertiesBuffer = mutable.ListBuffer[RelWithRScheme[L, _]]()
@@ -166,8 +176,8 @@ trait SchemeDefs extends RelationsDefs with RelationOps {
     }
 
     protected
-    def simpleProperty[R](name: String)(implicit classTag: ClassTag[R]) =
-      property(name)(SimpleScheme())
+    def simpleProperty[R](name: String)(implicit typeTag: TypeTag[R]) =
+      property[R](name)(SimpleScheme[R]())
 
 
     protected
@@ -213,9 +223,9 @@ trait InstanceDefs extends SchemeDefs {
     type SchemeType = CollectionScheme[T]
   }
 
-  case class Tuple2Instance[T1, T2](value: (Instance[T1], Instance[T2])) extends Instance[(T1, T2)] {
-    type SchemeType = Tuple2Scheme[T1, T2]
-  }
+//  case class Tuple2Instance[T1, T2](value: (Instance[T1], Instance[T2])) extends Instance[(T1, T2)] {
+//    type SchemeType = Tuple2Scheme[T1, T2]
+//  }
 
   case class TaggedInstance[Tg, T](tag: Tg, value: Instance[T]) extends Instance[Tag[Tg, T]] {
     type SchemeType = TaggedScheme[Tg, T]
@@ -225,13 +235,13 @@ trait InstanceDefs extends SchemeDefs {
     type SchemeType = AnnotatedScheme[T]
   }
 
-  case class Gen1Instance[T, S[_]](tag: Any, value: Instance[T]) extends Instance[S[T]] {
-    type SchemeType = Gen1Scheme[T, S]
-  }
-
-  case class CustomInstance[T, CS](tag: Any, value: Any) extends Instance[T] {
-    type SchemeType = CustomScheme[T, CS]
-  }
+//  case class Gen1Instance[T, S[_]](tag: Any, value: Instance[T]) extends Instance[S[T]] {
+//    type SchemeType = Gen1Scheme[T, S]
+//  }
+//
+//  case class CustomInstance[T, CS](tag: Any, value: Any) extends Instance[T] {
+//    type SchemeType = CustomScheme[T, CS]
+//  }
 
   case class InstanceWithMeta[T](i: Instance[T], s: Scheme[T])
 
@@ -243,9 +253,11 @@ trait SimpleOperationsDefs extends InstanceDefs {
 
   implicit def toExistentialRelWithRScheme[T, T2](rel: Rel[T, T2])(implicit scheme: Scheme[T2]): RelWithRScheme[T, _] = RelWithRScheme(rel, scheme)
 
-  implicit def toSimpleScheme[T <: AnyVal](implicit classTag: ClassTag[T]) = SimpleScheme[T]()
+  def simpleRel[T, T2](rel: Rel[T, T2])(implicit typeTag: TypeTag[T2]): RelWithRScheme[T, T2] = RelWithRScheme(rel, SimpleScheme[T2]())
 
-  implicit def intToIntId[T](id: Int):IntId[T] = IntId[T](id)
+  def simpleScheme[T <: AnyVal](implicit typeTag: TypeTag[T]) = SimpleScheme[T]()
+
+  implicit def intToIntId[T](id: Int)(implicit typeTag: TypeTag[T]):IntId[T] = IntId[T](id)
 
   def navigate[E, T](i: Instance[E], path: Relation[E, T]): Instance[T] =
     (
@@ -299,9 +311,9 @@ trait SimpleOperationsDefs extends InstanceDefs {
     case _ => throw new IllegalArgumentException(s"$i cannot be simplified")
   }
 
-  def empty[T](implicit classTag: ClassTag[T]): RecordInstance[T] = RecordInstance[T](Map())
+  def empty[T](implicit typeTag: TypeTag[T]): RecordInstance[T] = RecordInstance[T](Map())
 
-  def record[T](props: RelWithRScheme[T, _]*)(implicit classTag: ClassTag[T]) = RecordScheme[T](props.toSeq)
+  def record[T](props: RelWithRScheme[T, _]*)(implicit typeTag: TypeTag[T]) = RecordScheme[T](props.toSeq)
 
   def seq[T](values: Instance[T]*): CollectionInstance[T] = CollectionInstance[T](values.toSeq)
 
@@ -349,7 +361,7 @@ trait OperationsDefs extends SimpleOperationsDefs {
     }
 
     def ++[T2 >: T](other: RecordScheme[T2]): RecordScheme[T] =
-      RecordScheme(scheme.props ++ other.props)(scheme.classTag)
+      RecordScheme(scheme.props ++ other.props)(scheme.typeTag)
 
   }
 
@@ -380,8 +392,8 @@ trait OperationsDefs extends SimpleOperationsDefs {
           } yield matchResult
         else
           Seq(p)
-      case InstanceWithMeta(i, AnnotatedScheme(s)) =>
-        unmatches0(InstanceWithMeta(i, s))
+      case InstanceWithMeta(i0, AnnotatedScheme(s)) =>
+        unmatches0(InstanceWithMeta(i0, s))
       case _ =>
         throw new IllegalArgumentException("isMatching is not implemented for " + p)
     }

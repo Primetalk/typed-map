@@ -22,6 +22,7 @@ object resources {
   /** Resource identifier.*/
   trait Id[A]
 
+  /** Phantom type. */
   trait Entity[A]
 
   /** A function that can resolve the resource by it's id. */
