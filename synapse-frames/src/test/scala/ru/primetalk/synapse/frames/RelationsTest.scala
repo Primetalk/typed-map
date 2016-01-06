@@ -153,4 +153,16 @@ class RelationsTest extends FunSuite {
     assert(isMatching(circ10, someInfoAboutACircle))
     assert(!isMatching(circ10, fullInfoAboutACircle))
   }
+
+  type MyType = List[Int] with Boolean
+  test("type name"){
+    assert(typeName[List[Int]]() === "List[Int]")
+    assert(typeName[List[_]]() === "List[_]")
+    assert(typeName[Map[_,_]]() === "Map[_,_]")
+    assert(typeName[List[Int] with Boolean]() === "List[Int] with Boolean")
+    assert(typeName[MyType]() === "MyType")
+    assert(typeName[MyType](dealias = true) === "List[Int] with Boolean")
+    assert(typeName[Boolean with List[Int]]() === "Boolean with List[Int]")
+    assert(typeName[Boolean with List[Int]](sorted = true) === typeName[List[Int] with Boolean](sorted = true))
+  }
 }
