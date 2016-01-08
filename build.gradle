@@ -23,7 +23,7 @@ ext {
     scalaMajorVersion = '2.11'
     scalaFullVersion = "${scalaMajorVersion}.7"
     scalaTest = "org.scalatest:scalatest_${scalaMajorVersion}:2.2.4"
-    shapelessDep = "com.chuusai:shapeless_${scalaMajorVersion}:2.1.0"
+    shapelessDep = "com.chuusai:shapeless_${scalaMajorVersion}:2.2.5"
 //    scalaMajorVersion = '2.10'
 //    scalaFullVersion = "${scalaMajorVersion}.5"
 //    scalaTest = "org.scalatest:scalatest_${scalaMajorVersion}:2.2.4"
@@ -180,15 +180,7 @@ subprojects {
                 pom.project {
                     artifactId "${project.name}_${scalaMajorVersion}"
                     packaging 'jar'
-                    description 'SynapseGrid is a framework for constructing reactive real-time immutable data flow systems. ' +
-                            '-core contains everything to run a single-threaded system, ' +
-                            '-akka contains everything to run systems over Akka actors, ' +
-                            '-slf4j - enables logging, ' +
-                            '-concurrent - running systems directly over ExecutorContext without the need for Akka, ' +
-                            '-examples - a few test systems. Also there are ' +
-                            '-frames - a framework for type construction with meta information (see relations.scala). '+
-                            '-typed-expressions - a framework for defining parsers and generators for natural language. ' +
-                            '' +
+                    description 'synapse-frames - a framework for type construction with meta information (see relations.scala). '+
                             "The current version is $aVersion"
                     url 'https://github.com/Primetalk/SynapseGrid'
                     parent {
@@ -209,23 +201,12 @@ subprojects {
                             name 'Arseniy Zhizhelev'
                             email 'zhizhelev@primetalk.ru'
                         }
-                        developer {
-                            id 'nehaev'
-                            name 'Anton Nehaev'
-                            email 'nehaev@primetalk.ru'
-                        }
-                        developer {
-                            id 'popov'
-                            name 'Pavel Popov'
-                            email 'popov@primetalk.ru'
-                        }
-
                     }
 
                     scm {
-                        url 'https://github.com/Primetalk/SynapseGrid'
-                        connection 'scm:git:git@github.com:Primetalk/SynapseGrid.git'
-                        developerConnection 'scm:git:git@github.com:Primetalk/SynapseGrid.git'
+                        url 'https://github.com/Primetalk/typed-map'
+                        connection 'scm:git:git@github.com:Primetalk/typed-map.git'
+                        developerConnection 'scm:git:git@github.com:Primetalk/typed-map.git'
                     }
 
                 }
@@ -241,5 +222,6 @@ project(':synapse-frames') {
     dependencies {
         compile scalaReflect
 
+        compile shapelessDep
     }
 }

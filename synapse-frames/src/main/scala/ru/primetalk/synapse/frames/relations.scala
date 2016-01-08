@@ -48,17 +48,28 @@ trait RelationsDefs {
   sealed trait Property01[R] extends Property00 {
     def typeTag:TypeTag[R]
   }
+  trait Property[-L, R] extends Property10[L] with Property01[R]
   /**
    * An arbitrary relation identifier.
    */
-  trait Relation[-L, R] extends Property10[L] with Property01[R]
+  trait Relation[-L, R] extends Property[L,R]
 
   /** A single instance of type R can be traversed to
     * from  an instance of type L using the given name.
     *
     * Usually this is referred to as an attribute or a property.
     * */
-  case class Rel[-L, R](name: String)(implicit val typeTag:TypeTag[R]) extends Relation[L, R]
+  case class NamedProperty[-L, R](name: String)(implicit val typeTag:TypeTag[R]) extends Relation[L, R]
+  class Entity[L] {
+    def prop[R](name: String)(implicit typeTag: TypeTag[R]) = NamedProperty[L, R](name)
+  }
+  /** DSL for property creation.
+    * Usage:
+    * {{{
+    *   entity[Circle].prop[Int]("radius")
+    * }}}
+    */
+  def entity[L] = new Entity[L]
 
   /** A single instance of type R can be obtained
     * from an  instance of type L using index.
@@ -149,7 +160,7 @@ trait RelationOps extends RelationsDefs {
 trait SchemeDefs extends RelationsDefs with RelationOps {
 
   /** an aggregate of a relation with the scheme for the right part. */
-  case class RelWithRScheme[-L, R](rel: Rel[L, R], scheme: Scheme[R])
+  case class RelWithRScheme[-L, R](rel: NamedProperty[L, R], scheme: Scheme[R])
 
   sealed trait Scheme[T] {
     def typeTag: TypeTag[T]
@@ -204,7 +215,7 @@ trait SchemeDefs extends RelationsDefs with RelationOps {
 
     protected
     def property[R](name: String)(implicit scheme: Scheme[R]) = {
-      val r = Rel[L, R](name)
+      val r = NamedProperty[L, R](name)
       propertiesBuffer += RelWithRScheme(r, scheme)
       r
     }
@@ -228,6 +239,96 @@ trait SchemeDefs extends RelationsDefs with RelationOps {
     ps.toScheme
 }
 
+trait PropertyValueDefs extends RelationsDefs {
+  sealed trait PropertyValue10[-L] {
+    def prop: Property10[L]
+    def value: Any
+  }
+  case class PropertyValue[-L,T](prop:Property[L,T], value:T) extends PropertyValue10[L]
+  /** PropertyValue DSL.
+    * {{{
+    *   width := 10
+    * }}}
+    */
+  implicit class PropertyEx[-L,T](prop:Property[L,T]){
+    def :=(value:T) = Some(PropertyValue(prop,value))
+    def ?=(valueOpt:Option[T]) = valueOpt.map(PropertyValue(prop,_))
+  }
+
+}
+/** Core type for storing data - Record[L].*/
+trait RecordDefs extends RelationsDefs with PropertyValueDefs{
+  sealed trait Record0 {
+    def props:Seq[Property00]
+    def values:Seq[Any]
+  }
+
+  sealed trait Record[L] extends Record0 {
+    def props:Seq[Property10[L]]
+    def values:Seq[Any]
+  }
+  case class RecordImpl[L](props:Seq[Property10[L]], values:Seq[Any]) extends Record[L] {
+    def get[T](prop:Property[L,T]):Option[T] = {
+      val index = props.indexOf(prop)
+      if (index == -1) None else Option(values(index)).asInstanceOf[Option[T]]
+    }
+
+    def :+[T](optPropValue:Option[PropertyValue[L,T]]):Record[L] = optPropValue match {
+      case None => this
+      case Some(PropertyValue(prop, value)) => RecordImpl[L](props :+ prop, values :+ value)
+    }
+    def :++[L2>:L](other:Record[L2]):Record[L] = RecordImpl(props ++ other.props, values ++ other.values)
+  }
+  def empty[L]:Record[L] = RecordImpl[L](Seq(),Seq())
+  def record[L](propValues:Option[PropertyValue10[L]]*):Record[L] = {
+    val flat = propValues.flatten
+    RecordImpl[L](flat.map(_.prop), flat.map(_.value))
+  }
+}
+/** Representation of HList-based schema of a record. We call it a Shape (similar to Slick library).
+  */
+trait HListRelDefs extends PropertyValueDefs with RecordDefs {
+  import shapeless._
+
+  case class RecordValue[L,V<:HList, R <: RecordShape[L,V]](shape:R, value:V) {
+    def get[T](prop:Property[L,T]):Option[T] = {
+      import shapeless.HList.ListCompat._
+      def get0(shape:Any, value:Any):Option[T] = shape match {
+        case ConsRShape(prop1, tail) =>
+          val head #: vtail = value
+          if(prop1 == prop)
+            Some(head).asInstanceOf[Option[T]]
+          else
+            get0(tail, vtail)
+        case NilRShape() =>
+          None
+      }
+      get0(shape, value)
+    }
+
+  }
+  sealed trait RecordShape0 {
+    type LType
+    type VType <: HList
+  }
+  sealed trait RecordShape[L,V<:HList] extends RecordShape0 {
+    type LType = L
+    type VType = V
+    def :=(value:VType) = RecordValue[L, V, this.type](this, value)
+  }
+
+  case class NilRShape[L]() extends RecordShape[L, HNil]
+
+  case class ConsRShape[T,R <: RecordShape0](prop:Property[R#LType,T], tail:R) extends RecordShape[R#LType,T::R#VType]
+
+  def rnil[L] = NilRShape[L]()
+
+  implicit class RecordShapeOps[R<:RecordShape0](rs:R){
+    def ::[T](prop:Property[R#LType,T]) = ConsRShape[T,R](prop, rs)
+  }
+
+}
+
 trait InstanceDefs extends SchemeDefs {
 
   /** An instance that is associated with the type T. */
@@ -246,7 +347,7 @@ trait InstanceDefs extends SchemeDefs {
     lazy val values = map.toSeq
 
     def get[V](rel: Relation[T, V]): Instance[V] = rel match {
-      case Rel(name) =>
+      case NamedProperty(name) =>
         map(name).asInstanceOf[Instance[V]]
       case _ => ???
     }
@@ -285,9 +386,9 @@ trait SimpleOperationsDefs extends InstanceDefs {
   // NB! this implicit leads to poor behavior. It tries to convert everything to simpleInstance. Do not remove this comment
   //  implicit def toInstance[T](value: T)(implicit simpleScheme: SimpleScheme[T]) = SimpleInstance[T](value)
 
-  implicit def toExistentialRelWithRScheme[T, T2](rel: Rel[T, T2])(implicit scheme: Scheme[T2]): RelWithRScheme[T, _] = RelWithRScheme(rel, scheme)
+  implicit def toExistentialRelWithRScheme[T, T2](rel: NamedProperty[T, T2])(implicit scheme: Scheme[T2]): RelWithRScheme[T, _] = RelWithRScheme(rel, scheme)
 
-  def simpleRel[T, T2](rel: Rel[T, T2])(implicit typeTag: TypeTag[T2]): RelWithRScheme[T, T2] = RelWithRScheme(rel, SimpleScheme[T2]())
+  def simpleRel[T, T2](rel: NamedProperty[T, T2])(implicit typeTag: TypeTag[T2]): RelWithRScheme[T, T2] = RelWithRScheme(rel, SimpleScheme[T2]())
 
   def simpleScheme[T <: AnyVal](implicit typeTag: TypeTag[T]) = SimpleScheme[T]()
 
@@ -297,7 +398,7 @@ trait SimpleOperationsDefs extends InstanceDefs {
     (
       (i, path) match {
         case (_, Rel2(_1, _2)) => navigate(navigate(i, _1), _2)
-        case (r: RecordInstance[_], p: Rel[_, _]) => r.map(p.name)
+        case (r: RecordInstance[_], p: NamedProperty[_, _]) => r.map(p.name)
         case (c: CollectionInstance[_], IntId(id)) => c.values(id)
         case _ => throw new IllegalArgumentException(s"Couldn't navigate from $i by $path")
       }
@@ -307,7 +408,7 @@ trait SimpleOperationsDefs extends InstanceDefs {
     (
       (i, path) match {
         case (_, Rel2(_1, _2)) => update(i, _1, update(navigate(i, _1), _2, value))
-        case (r: RecordInstance[_], Rel(name)) =>
+        case (r: RecordInstance[_], NamedProperty(name)) =>
           RecordInstance(i.asInstanceOf[RecordInstance[Any]].map.updated(name, value))
         case (c: CollectionInstance[_], IntId(id)) => CollectionInstance(c.values.asInstanceOf[Seq[Instance[Any]]].updated(id, value))
         case _ => throw new IllegalArgumentException(s"Couldn't navigate from $i by $path")
@@ -345,7 +446,7 @@ trait SimpleOperationsDefs extends InstanceDefs {
     case _ => throw new IllegalArgumentException(s"$i cannot be simplified")
   }
 
-  def empty[T](implicit typeTag: TypeTag[T]): RecordInstance[T] = RecordInstance[T](Map())
+  def emptyInstance[T](implicit typeTag: TypeTag[T]): RecordInstance[T] = RecordInstance[T](Map())
 
   def record[T](props: RelWithRScheme[T, _]*)(implicit typeTag: TypeTag[T]) = RecordScheme[T](props.toSeq)
 
@@ -355,7 +456,7 @@ trait SimpleOperationsDefs extends InstanceDefs {
     private
     val map = mutable.Map[String, Instance[_]]()
 
-    def set[T2, Anc >: T](prop: Rel[Anc, T2], value: Instance[T2]) = {
+    def set[T2, Anc >: T](prop: NamedProperty[Anc, T2], value: Instance[T2]) = {
       if (scheme.map.keySet.contains(prop.name))
         map(prop.name) = value
       else
@@ -486,7 +587,7 @@ trait OperationsDefs extends SimpleOperationsDefs {
 trait Navigation extends InstanceDefs {
 
   implicit class SchemeEx[T](scheme: Scheme[T]) {
-    def /[T2, Anc >: T](prop: Rel[Anc, T2]): Scheme[T2] = scheme match {
+    def /[T2, Anc >: T](prop: NamedProperty[Anc, T2]): Scheme[T2] = scheme match {
       case r: RecordScheme[T] => r.map(prop.name).asInstanceOf[Scheme[T2]]
       case _ => throw new IllegalArgumentException(s"cannot proceed hierachically with other schemes except RecordScheme or CollectionScheme: $scheme ")
     }
@@ -500,8 +601,10 @@ trait Navigation extends InstanceDefs {
   implicit class SchemeEx2[T](scheme: Scheme[Seq[T]]) {
 
     def /(e: Element.type): Scheme[T] = scheme match {
-      case cs: CollectionScheme[T] => cs.elementScheme.asInstanceOf[Scheme[T]]
-      case _ => throw new IllegalArgumentException(s"Cannot proceed hierachically with other schemes except CollectionScheme: $scheme ")
+      case cs: CollectionScheme[T] =>
+        cs.elementScheme.asInstanceOf[Scheme[T]]
+      case _ =>
+        throw new IllegalArgumentException(s"Cannot proceed hierarchically with other schemes except CollectionScheme: $scheme ")
     }
 
   }
@@ -515,3 +618,4 @@ object relations
   with Navigation
   with OperationsDefs
   with TypeTagOps
+  with HListRelDefs
