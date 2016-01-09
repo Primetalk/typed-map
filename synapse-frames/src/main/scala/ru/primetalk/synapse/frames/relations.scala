@@ -41,25 +41,36 @@ import scala.reflect.runtime.universe._
  *
  * It is also possible to have reflection-based implementation for storing data in fields of POJO.
  */
-trait RelationsDefs {
+trait BaseRelationsDefs {
 
   sealed trait Property00
+
   sealed trait Property10[-L] extends Property00
+
   sealed trait Property01[R] extends Property00 {
-    def typeTag:TypeTag[R]
+    def typeTag: TypeTag[R]
   }
+
   trait Property[-L, R] extends Property10[L] with Property01[R]
+
   /**
-   * An arbitrary relation identifier.
-   */
-  trait Relation[-L, R] extends Property[L,R]
+    * An arbitrary relation identifier.
+    */
+  trait Relation[-L, R] extends Property[L, R]
 
   /** A single instance of type R can be traversed to
     * from  an instance of type L using the given name.
     *
     * Usually this is referred to as an attribute or a property.
     * */
-  case class NamedProperty[-L, R](name: String)(implicit val typeTag:TypeTag[R]) extends Relation[L, R]
+  case class NamedProperty[-L, R](name: String)(implicit val typeTag: TypeTag[R]) extends Relation[L, R]
+
+  sealed trait TypedMap0 {
+    def get0[T](prop: Property01[T]): Option[T]
+  }
+
+}
+trait RelationsDefs extends BaseRelationsDefs{
   class Entity[L] {
     def prop[R](name: String)(implicit typeTag: TypeTag[R]) = NamedProperty[L, R](name)
   }
@@ -258,7 +269,7 @@ trait PropertyValueDefs extends RelationsDefs {
 }
 /** Core type for storing data - Record[L].*/
 trait RecordDefs extends RelationsDefs with PropertyValueDefs{
-  sealed trait Record0 {
+  sealed trait Record0 extends TypedMap0 {
     def props:Seq[Property00]
     def values:Seq[Any]
   }
@@ -268,10 +279,12 @@ trait RecordDefs extends RelationsDefs with PropertyValueDefs{
     def values:Seq[Any]
   }
   case class RecordImpl[L](props:Seq[Property10[L]], values:Seq[Any]) extends Record[L] {
-    def get[T](prop:Property[L,T]):Option[T] = {
+    def get0[T](prop:Property01[T]):Option[T] = {
       val index = props.indexOf(prop)
       if (index == -1) None else Option(values(index)).asInstanceOf[Option[T]]
     }
+
+    def get[T](prop:Property[L,T]):Option[T] = get0(prop)
 
     def :+[T](optPropValue:Option[PropertyValue[L,T]]):Record[L] = optPropValue match {
       case None => this
@@ -297,6 +310,12 @@ trait HListRelDefs extends PropertyValueDefs with RecordDefs {
         case ConsRShape(prop1, tail) =>
           val head #: vtail = value
           if(prop1 == prop)
+            head.asInstanceOf[Option[T]]
+          else
+            get0(tail, vtail)
+        case MConsRShape(prop1, tail) =>
+          val head #: vtail = value
+          if(prop1 == prop)
             Some(head).asInstanceOf[Option[T]]
           else
             get0(tail, vtail)
@@ -319,12 +338,14 @@ trait HListRelDefs extends PropertyValueDefs with RecordDefs {
 
   case class NilRShape[L]() extends RecordShape[L, HNil]
 
-  case class ConsRShape[T,R <: RecordShape0](prop:Property[R#LType,T], tail:R) extends RecordShape[R#LType,T::R#VType]
+  case class ConsRShape[T,R <: RecordShape0](prop:Property[R#LType,T], tail:R) extends RecordShape[R#LType,Option[T]::R#VType]
+  case class MConsRShape[T,R <: RecordShape0](prop:Property[R#LType,T], tail:R) extends RecordShape[R#LType,T::R#VType]
 
   def rnil[L] = NilRShape[L]()
 
   implicit class RecordShapeOps[R<:RecordShape0](rs:R){
-    def ::[T](prop:Property[R#LType,T]) = ConsRShape[T,R](prop, rs)
+    def :?:[T](prop:Property[R#LType,T]) = ConsRShape[T,R](prop, rs)
+    def :!:[T](prop:Property[R#LType,T]) = MConsRShape[T,R](prop, rs)
   }
 
 }

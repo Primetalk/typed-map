@@ -180,9 +180,8 @@ class RelationsTest extends FunSuite {
   test("RShape"){
     new BoundingRectangleOnt {
       import BoundingRectangleS._
-//      radius :: radius :: new RecordShapeOps[Circle, HNil, NilRShape[Circle]](rnil[Circle])
-      val shape = height :: width :: rnil[BoundingRectangle]
-      val svalue = shape := 10::20::HNil
+      val shape = height :?: width :!: rnil[BoundingRectangle]
+      val svalue = shape := Some(10)::20::HNil
       assert(svalue.value.tail.head === 20)
       assert(svalue.get(height) === Some(10))
       assert(svalue.get(width) === Some(20))
