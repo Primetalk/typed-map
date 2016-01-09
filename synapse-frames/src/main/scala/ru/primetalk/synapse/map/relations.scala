@@ -18,8 +18,7 @@ import scala.language.higherKinds
 
 /** Key class that allows to distinguish relations from other types.
   * This type is used to find appropriate implicit type-class.
-  *
-  * */
+  */
 sealed trait RelationId0
 /** An identifier of a binary relation between A and B.
   * A relational algebra can be parameterized by two classes:

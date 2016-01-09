@@ -12,7 +12,7 @@
  */
 package ru.primetalk.synapse.frames
 
-object types {
+object types extends TypeNames {
 
   /** Some operations with types that can be helpful when dealing with types.
     *

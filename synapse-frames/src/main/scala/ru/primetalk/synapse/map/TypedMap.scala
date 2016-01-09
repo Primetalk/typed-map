@@ -1,12 +1,15 @@
 package ru.primetalk.synapse.map
 
-import scala.collection.generic.CanBuildFrom
+import ru.primetalk.synapse.frames.{Relation, Property00, Record}
+
 import scala.language.higherKinds
+import scala.reflect.runtime.universe._
+
 /**
  * Typeless type for a key. It is helpful to deal without generics.
  * @author zhizhelev, 31.01.15.
  */
-sealed trait Key0 {
+sealed trait Key0 extends Property00 {
   def isOptional: Boolean
 }
 /** Keys address data elements in typed maps.
@@ -15,7 +18,7 @@ sealed trait Key0 {
   *           key much is like a function from instance of TypedMap to value T.
   * @tparam T right type of the Key
   */
-trait Key[-E, T] extends Key0 {///with RelationId[TypedMap[E],T]{
+trait Key[-E, T] extends Key0 with Relation[Record[E],T]{
 //  type LeftType >: E contravariant type cannot be stored in invariant type
 //  type RightType <: T covariant type cannot be stored in invariant type
 
@@ -24,12 +27,12 @@ trait Key[-E, T] extends Key0 {///with RelationId[TypedMap[E],T]{
   def ? = new OptionalKey0[E, T](this)
 }
 
-case class StringKey[-E, T](name: String) extends Key[E, T] { def value = name }
+case class StringKey[-E, T](name: String)(implicit val typeTag:TypeTag[T]) extends Key[E, T] { def value = name }
 
-case class LongKey[-E, T](id: Long) extends Key[E, T] { def value = id }
+case class LongKey[-E, T](id: Long)(implicit val typeTag:TypeTag[T]) extends Key[E, T] { def value = id }
 
 /** A key that is based on an arbitrary value*/
-case class AnyKey[-E, T, A](value: A) extends Key[E, T]
+case class AnyKey[-E, T, A](value: A)(implicit val typeTag:TypeTag[T]) extends Key[E, T]
 
 /** A variant of a key that has type Option[T].
   * This can be used to explicitly express the idea of an absent value.
@@ -37,13 +40,12 @@ case class AnyKey[-E, T, A](value: A) extends Key[E, T]
   * we may use optional keys for those properties that can be empty.
   * */
 case class OptionalKey0[-E, T](key: Key[E, T]) extends Key[E,Option[T]] {
-
+  val typeTag:TypeTag[Option[T]] = {
+    implicit val tt = key.typeTag
+    implicitly[TypeTag[Option[T]]]
+  }
   override def isOptional = true
 }
-
-sealed trait Record0
-
-trait Record[+T]
 
 sealed trait TypedMap0 {
 
