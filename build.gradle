@@ -43,7 +43,7 @@ ext {
 // gradle OutOfMemoryError: PermGen space:
 // JAVAOPTS="-Xmx1024M -XX:MaxPermSize=512M"
 task wrapper(type: Wrapper) {
-    gradleVersion = '2.3'
+    gradleVersion = '3.4.1'
 }
 
 gradle.taskGraph.whenReady { taskGraph ->
@@ -129,11 +129,6 @@ subprojects {
     }
 
     tasks.withType(ScalaCompile) {
-        scalaCompileOptions.useAnt = false
-        scalaCompileOptions.useCompileDaemon = true
-        // optionally specify host and port of the daemon:
-        scalaCompileOptions.daemonServer = "localhost:4243"
-
         scalaCompileOptions.additionalParameters = ["-feature"]
     }
 
