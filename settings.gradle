@@ -1,2 +1,5 @@
 include 'synapse-frames'
 include 'synapse-slick-lifted'
+include 'typed-ontology'
+include 'typed-ontology-meta'
+include 'typed-json'
