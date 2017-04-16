@@ -6,7 +6,7 @@ import ru.primetalk.typed.ontology.meta.SimplePropertiesMeta
 import ru.primetalk.typed.ontology.meta.SimplePropertiesMeta.PropertyId
 import ru.primetalk.typed.ontology.meta.metameta
 
-import scala.language.higherKinds
+import scala.language.{higherKinds, implicitConversions}
 /**
   * Package `meta` contains definitions that are used to express ontology.
   * For instance, here we define PropertyId class that represent a property description.
@@ -16,7 +16,7 @@ package object json extends RecordRepresentation {
 
   val meta = SimplePropertiesMeta
 
-  implicit def recordSupport: RecordTypeClass[RecordImpl, meta.PropertyIdImpl] = JObjectRecord.JObjectRecordTypeClassInstance
+  implicit val recordSupport: RecordTypeClass[RecordImpl, meta.PropertyIdImpl] = JObjectRecord.JObjectRecordTypeClassInstance
 
   type RecordImpl[A] = JObjectRecord[A]
 
@@ -59,25 +59,40 @@ package object json extends RecordRepresentation {
       }
       override def apply[A](record: JObjectRecord[A]):
         RecordWrapper[A] = new RecordWrapperImpl[A](record)
+
+      class SchemaBuilderOps[A](schemaBuilder: SchemaBuilder[A]) extends RecordSchemaBuilderOps[A] {
+        def empty: JObjectRecord[A] = JObjectRecord[A](JObject())
+        def record(propValueList: PropertyValue[A, _, _]*): JObjectRecord[A] =
+          JObjectRecord(JObject(
+            propValueList.collect{
+              case PropertyValue(key, Some(value), _, _, jsonConverter) =>
+                (key.asInstanceOf[PropertyId[A,_]].name, jsonConverter.toJson(value)):JField
+            }.toList
+          ))
+
+      }
+
+      implicit def schemaBuilderOps[A](schemaBuilder: SchemaBuilder[A]): RecordSchemaBuilderOps[A] = new SchemaBuilderOps[A](schemaBuilder)
+
+      case class PropertyValue[A, B, D](
+        propertyId: PropertyId[Record[A],B],
+        value: Option[D],
+        bd: metameta.TypeMapping[B, D],
+        r: PropertyIdTypeClass[PropertyId],
+        jsonConverter: JsonConverter[D]
+      )
+
+      implicit class PropertyIdOps[A,B](propertyId: PropertyId[Record[A],B])(implicit val r: PropertyIdTypeClass[PropertyId]) {
+
+        def :=[D](value: D)(implicit bd: metameta.TypeMapping[B, D], jsonConverter: JsonConverter[D]): PropertyValue[A, B, D] =
+          PropertyValue[A, B, D](propertyId, Some(value), bd, r, jsonConverter)
+
+        def ?=[D](value: Option[D])(implicit bd: metameta.TypeMapping[B, D], jsonConverter: JsonConverter[D]): PropertyValue[A, B, D] =
+          PropertyValue[A, B, D](propertyId, value, bd, r, jsonConverter)
+      }
+
     }
 
-  }
-
-  case class PropertyValue[PropertyIdImpl[-_,_], A, B, D](
-    propertyId: PropertyIdImpl[Record[A],B],
-    value: Option[D],
-    bd: metameta.TypeMapping[B, D],
-    r: PropertyIdTypeClass[PropertyIdImpl],
-    jsonConverter: JsonConverter[D]
-  )
-
-  implicit class PropertyIdOps[PropertyIdImpl[-_, _],A,B](propertyId: PropertyIdImpl[Record[A],B])(implicit val r: PropertyIdTypeClass[PropertyIdImpl]) {
-
-    def :=[D](value: D)(implicit bd: metameta.TypeMapping[B, D], jsonConverter: JsonConverter[D]): PropertyValue[PropertyIdImpl, A, B, D] =
-      PropertyValue[PropertyIdImpl, A, B, D](propertyId, Some(value), bd, r, jsonConverter)
-
-    def ?=[D](value: Option[D])(implicit bd: metameta.TypeMapping[B, D], jsonConverter: JsonConverter[D]): PropertyValue[PropertyIdImpl, A, B, D] =
-      PropertyValue[PropertyIdImpl, A, B, D](propertyId, value, bd, r, jsonConverter)
   }
 
   trait RecordTypeMappings extends AnyTypeMappings {
@@ -86,17 +101,5 @@ package object json extends RecordRepresentation {
   }
 
   object RecordTypeMappings extends RecordTypeMappings
-
-  implicit class SchemaBuilderOps[A](schemaBuilder: SchemaBuilder[A]){
-    def empty: JObjectRecord[A] = JObjectRecord[A](JObject())
-    def record(propValueList: PropertyValue[PropertyId, A, _, _]*): JObjectRecord[A] =
-      JObjectRecord(JObject(
-        propValueList.collect{
-          case PropertyValue(key, Some(value), _, _, jsonConverter) =>
-            (key.name, jsonConverter.toJson(value)):JField
-        }.toList
-      ))
-
-  }
 
 }

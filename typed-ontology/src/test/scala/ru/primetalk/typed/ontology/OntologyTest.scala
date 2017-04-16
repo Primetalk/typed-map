@@ -2,6 +2,7 @@ package ru.primetalk.typed.ontology
 
 import org.scalatest.FunSuite
 import ru.primetalk.typed.ontology.meta.metameta.RecordRepresentation
+import meta.metameta.toRecordWrapper
 
 /**
   * Test of various ways of handling data with typed ontology.
@@ -9,22 +10,20 @@ import ru.primetalk.typed.ontology.meta.metameta.RecordRepresentation
 class OntologyTest extends FunSuite {
 
   test("Creating records and reading values"){
-    import meta.metameta.toRecordWrapper
     import tmap.TypedMap.TypedMapRecordTypeClassInstance
     import ru.primetalk.typed.ontology.ontology.person
-    import tmap.SchemaBuilderOps
+    import tmap.TypedMap.TypedMapRecordTypeClassInstance.schemaBuilderOps
     import tmap.RecordTypeMappings.anyTypeMapping
     val alice = person.empty.updated(person.name, "Alice")
     assertResult(Some("Alice"))(alice.get(person.name))
   }
 
   test("Creating complex records and reading values"){
-    import meta.metameta.toRecordWrapper
-    import tmap.PropertyIdOps
+    import tmap.TypedMap.TypedMapRecordTypeClassInstance.PropertyIdOps
     import ru.primetalk.typed.ontology.ontology.{address, person}
 
     import tmap.RecordTypeMappings._
-    import tmap.SchemaBuilderOps
+    import tmap.TypedMap.TypedMapRecordTypeClassInstance.schemaBuilderOps
     import tmap.TypedMap.TypedMapRecordTypeClassInstance
     import meta.SimplePropertiesMeta.PropertyId.PropertyIdTypeClassInstance
 
@@ -43,17 +42,19 @@ class OntologyTest extends FunSuite {
     val meta: RecordRepresentation
     import meta.RecordImpl
   }
+
   trait AliceDataCheck {
     val meta: RecordRepresentation
     import meta.RecordImpl
     import ru.primetalk.typed.ontology.ontology.{address, person}
-//    import meta.SchemaBuilderOps
+    import meta.recordSupport
 //    def checkAlice(alice: RecordImpl[ontology.Person]) = {
 //      assertResult(Some("Alice"))(alice.get(person.name))
 //      assertResult("12345")(alice(person.address).apply(address.postalIndex))
 //    }
   }
-  test("Test data reuse with different data representation"){
+
+  test("Test data with another data representation"){
     import json._
     import json.RecordTypeMappings.anyTypeMapping
     import json.RecordTypeMappings.mapRecordToJObjectRecord
@@ -62,7 +63,8 @@ class OntologyTest extends FunSuite {
 //    import meta.metameta.toRecordWrapper
 //    import meta.PropertyIdOps
     import ru.primetalk.typed.ontology.ontology.{address, person}
-    import json.SchemaBuilderOps
+    import json.JObjectRecord.JObjectRecordTypeClassInstance.schemaBuilderOps
+    import json.JObjectRecord.JObjectRecordTypeClassInstance.PropertyIdOps
     import json.JObjectRecord.mapRecordToJObjectRecord
     import json.JObjectRecord.JObjectRecordTypeClassInstance
 

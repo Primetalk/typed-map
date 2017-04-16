@@ -21,9 +21,9 @@ package object metameta extends TypeMappings {
   }
 
   trait RecordTypeClass[RecordImpl[_], PropertyIdImpl[-_,_]]{
-    type PropertyId[-A,B] = PropertyIdImpl[A,B]
+//    type PropertyId[-A,B] = PropertyIdImpl[A,B]
     type PropertyHelper[A,B]
-//    type Record[+A] =
+
     trait RecordWrapper[A] {
       def record: RecordImpl[A]
       type Key[B] = PropertyIdImpl[Record[A], B]
@@ -37,6 +37,16 @@ package object metameta extends TypeMappings {
     }
 
     def apply[A](record: RecordImpl[A]): RecordWrapper[A]
+
+    type PropertyValue[A, B, D]
+
+    trait RecordSchemaBuilderOps[A] {//{
+      def empty: RecordImpl[A]
+      def record(propValueList: PropertyValue[A, _, _]*): RecordImpl[A]
+    }
+
+    implicit def schemaBuilderOps[A](schemaBuilder: SchemaBuilder[A]): RecordSchemaBuilderOps[A]
+
   }
 
   implicit def toRecordWrapper[RecordImpl[_], PropertyIdImpl[-_,_], A](record: RecordImpl[A])(implicit r: RecordTypeClass[RecordImpl, PropertyIdImpl]): r.RecordWrapper[A] = {

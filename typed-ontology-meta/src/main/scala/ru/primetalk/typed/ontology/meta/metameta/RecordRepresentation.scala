@@ -20,5 +20,5 @@ trait RecordRepresentation {
   /** Part of record is just a single property with it's value. */
   type PropertyValue[PropertyIdImpl[-_,_], A, B, D]
 
-  implicit def recordSupport: RecordTypeClass[RecordImpl, meta.PropertyIdImpl]
+  implicit val recordSupport: RecordTypeClass[RecordImpl, meta.PropertyIdImpl]
 }
